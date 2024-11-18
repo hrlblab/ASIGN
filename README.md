@@ -4,9 +4,7 @@ Our proposed ASGIN framework isa novel framework for 3D-ST prediction that trans
 
 - We introduce a new learning paradigm that shifts from 2D WSI-ST predictions to partially known 3D volumetric WSI-ST imputation.
 - A new multi-level spatial attention graphic network is proposed to facilitate comprehensive feature integration across different layers, neighboring regions, and multiple resolutions, thus enabling precise sample-level predictions.
-
-![Figure_2_overall_framework](./Figure/Figure_2_overall_framework.png)
-
+- 
 ## Implementation
 
 ### 1. Data preparation

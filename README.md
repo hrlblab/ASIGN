@@ -5,7 +5,7 @@ Our proposed ASGIN framework isa novel framework for 3D-ST prediction that trans
 - We introduce a new learning paradigm that shifts from 2D WSI-ST predictions to partially known 3D volumetric WSI-ST imputation.
 - A new multi-level spatial attention graphic network is proposed to facilitate comprehensive feature integration across different layers, neighboring regions, and multiple resolutions, thus enabling precise sample-level predictions.
 
-![Figure_2_overall_framework](./Figure/Figure_2_overall_framework.png)
+![Figure_3_network_structure](./Figure/Figure_3_network_structure.png)
 
 ## Implementation
 
@@ -87,7 +87,6 @@ Code for preparation for 3D sample-level dataset consists in folder `data_prepro
 
 MSAGNet comprises cross-attention layers, GAT blocks, and Transformer layers to integrate and aggregate features across multiple resolution levels, 3D sample levels, and patch-self levels, respectively. 
 
-![Figure_3_network_structure](./Figure/Figure_3_network_structure.png)
 
 #### 2.1 Training Implementation
 

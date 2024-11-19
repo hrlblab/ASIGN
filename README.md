@@ -46,7 +46,25 @@ Code for preparation for 2D multi-resolution patches consists in folder `data_pr
   python 7_make_dataset.py
   ```
 
-### 1.2 Preparation for 3D sample-level dataset
+### 1.2 3D Registration for samples
+
+Code for preparation for 3D registration for samples consists in folder `registration`. Running these python files following the annotated sequence.
+
+- Download `ANTs` from:
+
+  ```
+  https://github.com/ANTsX/ANTs
+  ```
+
+- Run the python files following the steps to get overlap information
+
+  ```bash
+  python Step1_affine_registration_2d_PAS_2048_xfeat.py
+  ...
+  python Step3.5_registertoMiddle_ANTs_points_contour_fast.py
+  ```
+
+### 1.3 Preparation for 3D sample-level dataset
 
 Code for preparation for 3D sample-level dataset consists in folder `data_preprocessing_3d`. Running these python files following the annotated sequence.
 

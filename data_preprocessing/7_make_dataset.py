@@ -2,9 +2,15 @@ import numpy as np
 import pandas as pd
 import os
 
+"""
+Step 8: final step for 2D level preprocessing.
+Input: All kinds of processed information from previous steps
+Output: Dict of spot information, saved as npy file. Each WSI gets one npy file.
+"""
+
 
 def find_region(x, y, region_size=1024):
-    # Calculate the region index for point (x, y)
+    # Calculate the region index where the point (x, y) belongs
     region_x = x // region_size
     region_y = y // region_size
     return region_x, region_y
@@ -14,7 +20,7 @@ root_dir = './ST_Breast/patches_csv/patches_224'
 for sample_dir in os.listdir(root_dir):
     img_file_dir = f'./ST_Breast/patches_csv/patches_224/{sample_dir}'
     gene_expression_dir = f'./ST_Breast/gene_expression/224/{sample_dir}'
-    feature_1024_path = f'./extracted_feature/1024/{sample_dir}'
+    feature_1024_path = f'./ST_Breast/extracted_feature/1024/{sample_dir}'
     feature_512_path = f'./ST_Breast/extracted_feature/512/{sample_dir}'
     gene_expression_dir_1024 = f'./ST_Breast/gene_expression/1024/{sample_dir}'
     gene_expression_dir_512 = f'./ST_Breast/gene_expression/512/{sample_dir}'
@@ -39,19 +45,15 @@ for sample_dir in os.listdir(root_dir):
 
             label = np.array(tmp_label_file_224[spot])
 
-            # position = [int(position_file_224.loc[position_file_224.iloc[:, 0] == spot]['x']),
-            #             int(position_file_224.loc[position_file_224.iloc[:, 0] == spot]['y'])]
-
             x_series = position_file_224.loc[position_file_224.iloc[:, 0] == spot]['i']
             y_series = position_file_224.loc[position_file_224.iloc[:, 0] == spot]['j']
 
-            # Check if Series is empty
+            # Check if x or y Series is empty
             if not x_series.empty and not y_series.empty:
                 try:
                     position = [int(x_series.iloc[0]), int(y_series.iloc[0])]
                 except (ValueError, TypeError) as e:
                     print(f"Skipping due to conversion error: {e}")
-                    # You can choose to log this issue or continue execution
                     continue
             else:
                 print(f"Skipping because x or y Series is empty for spot {spot}")

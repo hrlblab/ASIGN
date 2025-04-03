@@ -34,18 +34,18 @@ class ST_GTC(nn.Module):
         )
 
         self.gene_head_250 = nn.Sequential(
-            nn.LayerNorm(transformer_dim),  # Normalize features
-            nn.Linear(transformer_dim, gene_output)  # Map to target dimension n_genes
+            nn.LayerNorm(transformer_dim),
+            nn.Linear(transformer_dim, gene_output)
         )
 
         self.gene_head_512 = nn.Sequential(
-            nn.LayerNorm(transformer_dim),  # Normalize features
-            nn.Linear(transformer_dim, gene_output)  # Map to target dimension n_genes
+            nn.LayerNorm(transformer_dim),
+            nn.Linear(transformer_dim, gene_output)
         )
 
         self.gene_head_1024 = nn.Sequential(
-            nn.LayerNorm(transformer_dim),  # Normalize features
-            nn.Linear(transformer_dim, gene_output)  # Map to target dimension n_genes
+            nn.LayerNorm(transformer_dim),
+            nn.Linear(transformer_dim, gene_output)
         )
 
     def forward(self, x, adj, feature_512, feature_1024, graph_512, graph_1024, adj_512, adj_1024, idx_512, idx_1024):
@@ -87,22 +87,3 @@ class ST_GTC(nn.Module):
 
         return out_224, out_512, out_1024
 
-
-# if __name__ == "__main__":
-#     data_infor_path = "./HER2/npy_information/A1.npy"
-#     graph_path = "./HER2/graph_data/A1.pt"
-#     transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])
-#
-#     dataset = ImageGraphDataset(data_infor_path, graph_path, transform=transform)
-#     dataloader = DataLoader(dataset, batch_size=256, shuffle=True, collate_fn=collate_fn)
-#
-#     for images, labels, adj_sub, positions, idx_1024, idx_512, features_1024, features_512 in dataloader:
-#         print("Images:", images.shape)
-#         print("Labels:", labels.shape)
-#         print("Adjacency Submatrix:", adj_sub.shape)
-#         print("Positions:", positions.shape)
-#         print("Index 1024 Layer:", idx_1024.shape)
-#         print("Index 512 Layer:", idx_512.shape)
-#         print("Features 1024:", features_1024.shape)
-#         print("Features 512:", features_512.shape)
-#         break

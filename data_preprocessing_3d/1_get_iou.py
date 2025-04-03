@@ -6,6 +6,13 @@ from shapely.geometry import Polygon
 from tqdm import tqdm
 from joblib import Parallel, delayed
 
+"""
+Step 1: calculate IoU of spots cross layers.
+During image registration process, you should get registration_3D_ANTs. Then we use it to calculate the position of 
+spots regarding the reference WSI slide.
+Output: IoU of spots across layers, saved as csv file.
+"""
+
 
 # Load CSV files and return polygons and circle names
 def load_polygon_data(file_path):

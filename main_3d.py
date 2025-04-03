@@ -1,6 +1,6 @@
 import torch
 from dataloader_3d import ImageGraphDataset, collate_fn, create_dataloaders_for_train_file, \
-    create_dataloaders_for_test_file
+    create_dataloaders_for_result_file
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from models.graph_construction import edge_index_to_adj_matrix
@@ -20,17 +20,20 @@ from tensorboardX import SummaryWriter
 import numpy as np
 import time
 from models.losses import calculate_pcc, pcc_loss
+import pandas as pd
+
 
 warnings.filterwarnings("ignore", category=UserWarning,
                         message="Creating a tensor from a list of numpy.ndarrays is extremely slow")
 warnings.filterwarnings("ignore", category=FutureWarning,
                         message="You are using `torch.load` with `weights_only=False`")
 
+# ./HER2_3D
 parser = argparse.ArgumentParser()
-parser.add_argument('--root_path', type=str, default='./Our_data_format/HER2_3D',
+parser.add_argument('--root_path', type=str, default='./ST_Breast_3D',
                     help='Name of Experiment')
 parser.add_argument('--max_iterations', type=int, default=25000, help='maximum epoch number to train')
-parser.add_argument('--base_lr', type=float, default=0.0005, help='maximum epoch number to train')
+parser.add_argument('--base_lr', type=float, default=0.001, help='maximum epoch number to train')
 parser.add_argument('--lr_decay', type=float, default=0.9, help='learning rate decay')
 parser.add_argument('--seed', type=int, default=1337, help='random seed')
 parser.add_argument('--gpu', type=str, default='0', help='GPU to use')
@@ -70,8 +73,6 @@ if __name__ == "__main__":
     logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
     logging.info(str(args))
 
-    model = ST_GTC_3d().cuda()
-
     img_transform = transforms.Compose([torchvision.transforms.RandomHorizontalFlip(),
                                         torchvision.transforms.RandomVerticalFlip(),
                                         torchvision.transforms.RandomApply(
@@ -84,44 +85,72 @@ if __name__ == "__main__":
 
     cross_mse, cross_mae, cross_pcc_patch, = [], [], []
 
-    image_dict = {}
+    mse_metrics = []
+    mae_metrics = []
+    pcc_metrics = []
+    save_dict = {}
 
-    for image in image_folder_paths:
-        sample_name = image[0]
-        if sample_name not in image_dict:
-            image_dict[sample_name] = []
-        image_dict[sample_name].append(image)
+    # Here is cross validation code for ST data
+    all_folders = sorted([os.path.join(label_root, folder) for folder in os.listdir(label_root)])
+    num_folders = len(all_folders)
+    fold_size = num_folders // 4
 
-    fold_splits = [
-        {'A', 'E'},
-        {'B', 'F'},
-        {'C', 'G'},
-        {'D', 'H'},
-    ]
+    for fold in range(4):
+        start = fold * fold_size
+        end = start + fold_size if fold < 4 - 1 else num_folders  # Handle remaining folders in the last fold
 
-    for fold_index, fold_split in enumerate(fold_splits):
-        train_labels_path = []
-        val_labels_path = []
-
-        print(f"\nFold {fold_index + 1}:")
-
-        for sample, images in image_dict.items():
-            print(sample, images)
-            if sample not in fold_split:
-                train_labels_path.append(os.path.join(label_root, images[0]))
-            else:
-                val_labels = os.path.join(label_root, images[0])
-                val_labels_path.append(val_labels)
+        # Divide train set and test set
+        val_labels_path = all_folders[start:end]
+        train_labels_path = [folder for folder in all_folders if folder not in val_labels_path]
+        print(train_labels_path, val_labels_path)
 
         train_dataloaders = create_dataloaders_for_train_file(train_labels_path, batch_size=128,
                                                               transform=img_transform)
-        part_trainloader, test_dataloader = create_dataloaders_for_test_file(val_labels_path, batch_size=128,
+        part_trainloader, test_dataloader = create_dataloaders_for_result_file(val_labels_path, batch_size=128,
                                                                              transform=img_transform)
         train_dataloaders.update(part_trainloader)
 
+    # # Here is cross validation code for HER2
+    # image_dict = {}
+    #
+    # # According to image naming conventions (e.g. A1.npy, A2.npy, B1.npy...) Parse the picture
+    # for image in image_folder_paths:
+    #     sample_name = image[0]
+    #     if sample_name not in image_dict:
+    #         image_dict[sample_name] = []
+    #     image_dict[sample_name].append(image)
+    # fold_splits = [
+    #     {'A', 'E'},
+    #     {'B', 'F'},
+    #     {'C', 'G'},
+    #     {'D', 'H'},
+    # ]
+    # results = []
+    # for fold_index, fold_split in enumerate(fold_splits):
+    #
+    #     train_labels_path = []
+    #     val_labels_path = []
+    #
+    #     print(f"\nFold {fold_index + 1}:")
+    #
+    #     for sample, images in image_dict.items():
+    #         print(sample, images)
+    #         if sample not in fold_split:
+    #             train_labels_path.append(os.path.join(label_root, images[0]))
+    #         else:
+    #             val_labels = os.path.join(label_root, images[0])
+    #             val_labels_path.append(val_labels)
+    #
+    #     train_dataloaders = create_dataloaders_for_train_file(train_labels_path, batch_size=128,
+    #                                                           transform=img_transform)
+    #     part_trainloader, test_dataloader = create_dataloaders_for_result_file(val_labels_path, batch_size=128,
+    #                                                                            transform=img_transform)
+    #     train_dataloaders.update(part_trainloader)
+
         iter_num = 0
-        max_epoch = 40
+        max_epoch = 51
         lr_ = base_lr
+        model = ST_GTC_3d().cuda()
 
         writer = SummaryWriter(save_path + '/log')
 
@@ -143,12 +172,12 @@ if __name__ == "__main__":
                 print(f"Processing file: {file_name}")
                 tmp_name = file_name.split('/')[-1][:-4]
 
-                for images, labels, adj_sub, positions, idx_1024, idx_512, features_1024, features_512, graph_torch, known_label in tmp_loader:
+                for images, labels, adj_sub, adj_propagate, positions, idx_1024, idx_512, features_1024, features_512, graph_torch, known_label in tmp_loader:
                     graph_512 = graph_torch['layer_512']
                     graph_1024 = graph_torch['layer_1024']
 
                     batch_data = [
-                        images, adj_sub, features_512, features_1024,
+                        images, adj_sub, adj_propagate, features_512, features_1024,
                         graph_512.x, graph_1024.x,
                         edge_index_to_adj_matrix(graph_512), edge_index_to_adj_matrix(graph_1024),
                         known_label
@@ -160,12 +189,11 @@ if __name__ == "__main__":
                     pred_512_con = pred_512.cpu()[idx_512.cpu()]
                     pred_1024_con = pred_1024.cpu()[idx_1024.cpu()]
 
-                    loss_other_layer = pcc_loss(graph_512.y.cuda(), pred_512) + pcc_loss(graph_1024.y.cuda(), pred_1024)
+                    loss_other_layer_predict = pcc_loss(graph_512.y.cuda(), pred_512) + pcc_loss(graph_1024.y.cuda(), pred_1024)
+                    loss_consistency = pcc_loss(pred_512_con.cuda(), labels.cuda()) + pcc_loss(pred_1024_con.cuda(), labels.cuda())
+                    loss_spot_predict = 0.75 * mse_loss_fn(pred, labels.cuda()) + 0.25 * pcc_loss(pred, labels.cuda())
 
-                    loss_consistency = pcc_loss(pred_512_con.cuda(), labels.cuda()) + pcc_loss(pred_1024_con.cuda(),
-                                                                                               labels.cuda())
-
-                    loss = 1.5 * mse_loss_fn(pred, labels.cuda()) + 0.25 * pcc_loss(pred, labels.cuda()) + 0 * loss_other_layer + 0 * loss_consistency
+                    loss = loss_spot_predict + 0.125 * loss_other_layer_predict + 0.125 * loss_consistency
 
                     optimizer.zero_grad()
                     loss.backward()
@@ -184,30 +212,55 @@ if __name__ == "__main__":
                         break
                     time1 = time.time()
 
-            if epoch_num % 1 == 0:
+            if epoch_num % 10 == 0:
                 model.eval()
-                val_loss = 0.0
-                val_pcc = 0.0
-                val_mae = 0.0
-                total_samples = 0
-
-                best_mse = 10000
-
-                pcc_per_row, pcc_per_row_h50, pcc_per_row_v50 = 0, 0, 0
-                mean_pcc_per_patch, mean_pcc_per_patch_h50, mean_pcc_per_patch_v50 = 0, 0, 0
-                mae = 0
-
                 with torch.no_grad():
                     for file_name, tmp_loader in test_dataloader.items():
                         print(f"Processing file: {file_name}")
                         tmp_name = file_name.split('/')[-1][:-4]
+                        val_loss = 0.0
+                        val_pcc = 0.0
+                        val_mae = 0.0
+                        total_samples = 0
 
-                        for images, labels, adj_sub, positions, idx_1024, idx_512, features_1024, features_512, graph_torch, known_label, indices in tmp_loader:
+                        for images, labels, adj_sub, adj_propagate, positions, idx_1024, idx_512, features_1024, features_512, graph_torch, known_label, indices, _ in tmp_loader:
                             graph_512 = graph_torch['layer_512']
                             graph_1024 = graph_torch['layer_1024']
 
                             batch_data = [
-                                images, adj_sub, features_512, features_1024,
+                                images, adj_sub, adj_propagate, features_512, features_1024,
+                                graph_512.x, graph_1024.x,
+                                edge_index_to_adj_matrix(graph_512), edge_index_to_adj_matrix(graph_1024),
+                                known_label
+                            ]
+                            batch_data = [data.to(device) for data in batch_data]
+                            pred, b, c, = model(*batch_data)
+                            loss = mse_loss_fn(pred[indices], labels[indices].cuda())
+                            val_loss += loss.item() * len(indices)
+                            total_samples += len(indices)
+                            val_mae += np.mean(
+                                np.abs(pred[indices].cpu().numpy() - labels[indices].cpu().numpy())) * len(
+                                indices)
+                            val_pcc += calculate_pcc(pred[indices], labels[indices].cuda()) * len(indices)
+                            print(f'mse {loss}, pcc {calculate_pcc(pred[indices], labels[indices].cuda())}')
+
+            if (epoch_num+1) % max_epoch == 0:
+                model.eval()
+                with torch.no_grad():
+                    for file_name, tmp_loader in test_dataloader.items():
+                        print(f"Processing file: {file_name}")
+                        tmp_name = file_name.split('/')[-1][:-4]
+                        val_loss = 0.0
+                        val_pcc = 0.0
+                        val_mae = 0.0
+                        total_samples = 0
+
+                        for images, labels, adj_sub, adj_propagate, positions, idx_1024, idx_512, features_1024, features_512, graph_torch, known_label, indices, _ in tmp_loader:
+                            graph_512 = graph_torch['layer_512']
+                            graph_1024 = graph_torch['layer_1024']
+
+                            batch_data = [
+                                images, adj_sub, adj_propagate, features_512, features_1024,
                                 graph_512.x, graph_1024.x,
                                 edge_index_to_adj_matrix(graph_512), edge_index_to_adj_matrix(graph_1024),
                                 known_label
@@ -220,44 +273,26 @@ if __name__ == "__main__":
                             loss = mse_loss_fn(pred[indices], labels[indices].cuda())
                             val_loss += loss.item() * len(indices)
                             total_samples += len(indices)
-
-                            """
-                            Here is pcc for all, 50H, 50V                 
-                            """
-                            # mean_pcc_per_patch += calculate_overall_pcc(outputs.cpu().numpy(), labels)
-                            mae += np.mean(np.abs(pred[indices].cpu().numpy() - labels[indices].cpu().numpy())) * len(
+                            val_mae += np.mean(
+                                np.abs(pred[indices].cpu().numpy() - labels[indices].cpu().numpy())) * len(
                                 indices)
                             val_pcc += calculate_pcc(pred[indices], labels[indices].cuda()) * len(indices)
                             print(f'mse {loss}, pcc {calculate_pcc(pred[indices], labels[indices].cuda())}')
 
-                    if val_loss / total_samples < best_mse:
-                        best_mse = val_loss / total_samples
-                        best_mae = mae / total_samples
-                        best_pcc = val_pcc / total_samples
+                        mse_metrics.append(val_loss / total_samples)
+                        mae_metrics.append(val_mae / total_samples)
+                        pcc_metrics.append(val_pcc.cpu().numpy() / total_samples)
+                        torch.save(model.state_dict(), os.path.join(save_path, 'model_weights.pth'))
 
-                        torch.save(model.state_dict(), os.path.join(save_path, f"model_best_{fold_index}.pth"))
-                        print(f'Best model saved to {os.path.join(save_path, f"model_best_{fold_index}.pth")}')
+            save_dict['mse'] = mse_metrics
+            save_dict['mae'] = mae_metrics
+            save_dict['pcc'] = pcc_metrics
+            print(save_dict)
 
-                    print(f"Validation MSE Loss: {val_loss / total_samples}")
-                    print(f"Mean Absolute Error (MAE) with NumPy:{mae / total_samples}")
-                    print(f"Validation mean pcc per patch: {val_pcc / total_samples}")
+            df = pd.DataFrame(save_dict)
+            output_file = os.path.join(save_path, f'ours_metrics.xlsx')
+            df.to_excel(output_file, index=False)
 
-        cross_mse.append(best_mse)
-        cross_mae.append(best_mae)
-        cross_pcc_patch.append(best_pcc)
+            print(f"Results have been saved to {output_file}")
 
-        metrics_result = []
 
-        validation_metrics = {
-            'cross_mse': cross_mse,
-            'cross_mae': cross_mae,
-            'cross_pcc_patch': cross_pcc_patch,
-        }
-        metrics_result.append(validation_metrics)
-
-        np.save(os.path.join(save_path, '{}_validation_metrics.npy'.format(data_name)),
-                np.array(metrics_result))
-
-        with open(os.path.join(save_path, '{}_validation_metrics.txt'.format(data_name)), 'w') as file:
-            for key, values in validation_metrics.items():
-                file.write(f"{key}: {values}\n")

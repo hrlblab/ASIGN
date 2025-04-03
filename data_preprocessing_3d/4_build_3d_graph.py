@@ -1,9 +1,14 @@
-
 import os
 import random
 import torch
 from torch_geometric.data import HeteroData
 import shutil
+
+"""
+Step 4: Combine previous 2D WSI graph into 3D sample graph
+Input: .pt files of each WSI
+Output: .pt file for samples
+"""
 
 
 def load_hetero_data(file_path):

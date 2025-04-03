@@ -13,41 +13,44 @@ class gs_block_with_attention_fixed_weights_3d(nn.Module):
         self.embed_dim = embed_dim
         self.feat_dim = feature_dim
         self.attention = attention
-        self.use_fixed_weights = use_fixed_weights  # Control whether to use fixed weights
+        self.use_fixed_weights = use_fixed_weights  # Whether to use fixed weights
 
-        # Weight parameters
+        # Learnable weight parameter
         self.weight = nn.Parameter(torch.FloatTensor(
             embed_dim,
             self.feat_dim if self.gcn else 2 * self.feat_dim
         ))
         init.xavier_uniform_(self.weight)
 
-        # Add attention parameters if attention is used
+        # If using attention, initialize attention weight
         if self.attention:
             self.att_weight = nn.Parameter(torch.FloatTensor(self.feat_dim, 1))
             init.xavier_uniform_(self.att_weight)
 
-        # Introduce fixed weight matrices (only effective when use_fixed_weights is True)
+        # Define fixed weight matrices (if enabled)
         if use_fixed_weights:
             self.fixed_weight1 = fixed_weight1 if fixed_weight1 is not None else torch.eye(feature_dim)
             self.fixed_weight2 = fixed_weight2 if fixed_weight2 is not None else torch.eye(feature_dim)
-            # Ensure fixed weights do not participate in training
             self.fixed_weight1.requires_grad = False
             self.fixed_weight2.requires_grad = False
 
-    def forward(self, x, Adj, x_label, known_label_mask):
+    def forward(self, x, Adj, x_label, known_label_mask, Adj_propagate=None, is_weighted=False):
         # Check whether to use fixed weights
         if self.use_fixed_weights:
-            # Transform features using fixed weight matrices
+            # Use fixed weight matrices to transform input features
             x_transformed = x @ self.fixed_weight1 + x @ self.fixed_weight2
         else:
-            x_transformed = x  # If not using fixed weights, directly use original input features
+            x_transformed = x  # If not using fixed weights, keep original features
 
-        # New: label propagation process
-        # Use label propagation weights and adjacency matrix to propagate x_label, obtaining predictions for unknown labels
-        label_propagation = self.propagate_labels(x_label, Adj, known_label_mask)
+        # Label propagation:
+        # Predict unknown labels by diffusing known labels through the graph structure
+        # If `is_weighted` is True, use weighted adjacency matrix
+        if is_weighted:
+            label_propagation = self.propagate_labels(x_label, Adj_propagate, known_label_mask)
+        else:
+            label_propagation = self.propagate_labels(x_label, Adj, known_label_mask)
 
-        # Aggregate features
+        # Aggregate neighbor features
         neigh_feats = self.aggregate(x_transformed, Adj)
 
         if not self.gcn:
@@ -58,29 +61,28 @@ class gs_block_with_attention_fixed_weights_3d(nn.Module):
         combined = F.relu(self.weight.mm(combined.T)).T
         combined = F.normalize(combined, 2, 1)
 
-        # Output: return labels after label propagation and features processed by GCN
+        # Return both the GCN-processed features and the propagated labels
         return combined, label_propagation
 
     def propagate_labels(self, x_label, Adj, known_label_mask):
         """
-        Label propagation process that only affects unknown nodes.
+        Label propagation process that only updates unknown nodes.
 
         Args:
-            x_label (torch.Tensor): Input label matrix with shape [num_nodes, num_classes]
-            Adj (torch.Tensor): Adjacency matrix with shape [num_nodes, num_nodes]
-            known_label_mask (torch.Tensor): Mask for known labels with shape [num_nodes], where 1 indicates known labels and 0 indicates unknown labels
-
+            x_label (torch.Tensor): Input label matrix, shape [num_nodes, num_classes]
+            Adj (torch.Tensor): Adjacency matrix, shape [num_nodes, num_nodes]
+            known_label_mask (torch.Tensor): Binary mask of known labels, shape [num_nodes],
+                                             where known labels = 1, unknown = 0
         Returns:
             torch.Tensor: Label matrix after propagation
         """
         adj = Adj.to(Adj.device)
         row_sum = adj.sum(dim=1, keepdim=True)
         adj_normalized = adj / row_sum.clamp(min=1e-10)  # Avoid division by zero
+        x_label_transformed = x_label.to(Adj.device)  # Initial labels
 
-        x_label_transformed = x_label  # Initial labels
-
-        for _ in range(20):  # Iterate the label propagation process
-            # Label propagation
+        for _ in range(20):  # Iterate label propagation
+            # Propagate labels through neighbors
             propagated_labels = torch.mm(adj_normalized, x_label_transformed)
 
             # Only update labels for unknown nodes
@@ -95,15 +97,15 @@ class gs_block_with_attention_fixed_weights_3d(nn.Module):
             adj = adj - torch.eye(n).to(adj.device)
 
         if self.policy == 'mean' and self.attention:
-            # Calculate attention weights between neighbor features and node features
-            att_scores = torch.matmul(x, self.att_weight).squeeze()  # [N, 1] -> [N]
+            # Compute attention scores for node features
+            att_scores = torch.matmul(x, self.att_weight).squeeze()  # [N, 1] → [N]
             att_scores = F.softmax(att_scores, dim=0)  # Normalize
 
-            # Calculate weighted neighbor features
+            # Compute weighted average of neighbor features
             num_neigh = adj.sum(1, keepdim=True)
-            mask = adj.div(num_neigh)  # Normalize adjacency matrix
-            weighted_feats = mask * att_scores.unsqueeze(1)  # Apply attention weights
-            to_feats = weighted_feats.mm(x)  # Sum weighted neighbor features
+            mask = adj.div(num_neigh)  # Normalize adjacency
+            weighted_feats = mask * att_scores.unsqueeze(1)  # Apply attention scores
+            to_feats = weighted_feats.mm(x)  # Weighted sum of neighbors
 
         elif self.policy == 'mean':
             num_neigh = adj.sum(1, keepdim=True)

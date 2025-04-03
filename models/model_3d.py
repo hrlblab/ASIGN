@@ -30,54 +30,31 @@ class ST_GTC_3d(nn.Module):
 
         self.transformer = GNNTransformerBlock(transformer_dim, dropout=dropout, num_heads=num_heads)
 
-        self.lstm_512 = nn.Sequential(
-            nn.LSTM(transformer_dim, transformer_dim, 2),
-        )
-
         self.gene_head_250 = nn.Sequential(
-            nn.LayerNorm(transformer_dim),  # Normalize features
-            nn.Linear(transformer_dim, gene_output)  # Map to target dimension n_genes
+            nn.LayerNorm(transformer_dim),
+            nn.Linear(transformer_dim, gene_output)
         )
 
         self.gene_head_512 = nn.Sequential(
-            nn.LayerNorm(transformer_dim),  # Normalize features
-            nn.Linear(transformer_dim, gene_output)  # Map to target dimension n_genes
+            nn.LayerNorm(transformer_dim),
+            nn.Linear(transformer_dim, gene_output)
         )
 
         self.gene_head_1024 = nn.Sequential(
-            nn.LayerNorm(transformer_dim),  # Normalize features
-            nn.Linear(transformer_dim, gene_output)  # Map to target dimension n_genes
+            nn.LayerNorm(transformer_dim),
+            nn.Linear(transformer_dim, gene_output)
         )
 
         self.alpha = nn.Parameter(torch.ones(gene_output) * 0.5)
 
-    def forward(self, x, adj, feature_512, feature_1024, graph_512, graph_1024, adj_512, adj_1024, known_label):
+    def forward(self, x, adj, adj_propagate, feature_512, feature_1024, graph_512, graph_1024, adj_512, adj_1024,
+                known_label):
         x = self.encoder(x)
 
         x_cross_512 = self.cross_attention_512(x, feature_512, feature_512)
         x_cross_1024 = self.cross_attention_1024(x, feature_1024, feature_1024)
 
-        x = x_cross_512 + x_cross_1024
-
-        graph_x_224 = []
-        label_propagations = []
-        #
-        for layer in self.gat_layer_224:
-            known_label_mask = (known_label.sum(dim=1) != 0).float()
-            g, label_propagation = layer(x, adj, known_label, known_label_mask)
-            graph_x_224.append(g.unsqueeze(0))
-            label_propagations.append(label_propagation)
-
-        g_224 = torch.cat(graph_x_224, 0)
-        g_224 = self.transformer(g_224)
-
-        graph_x_512 = []
-        for layer in self.gat_layer_512:
-            g = layer(graph_512, adj_512)
-            graph_x_512.append(g.unsqueeze(0))
-
-        g_512 = torch.cat(graph_x_512, 0)
-        g_512 = self.transformer(g_512)
+        x = torch.stack((x_cross_512, x_cross_1024), dim=0).sum(dim=0)
 
         graph_x_1024 = []
         for layer in self.gat_layer_1024:
@@ -85,11 +62,34 @@ class ST_GTC_3d(nn.Module):
             graph_x_1024.append(g.unsqueeze(0))
 
         g_1024 = torch.cat(graph_x_1024, 0)
-        g_1024 = self.transformer(g_1024)
+        g_1024_t = self.transformer(g_1024)
+        n_1024 = g_1024_t.shape[0]
 
-        out_224 = self.gene_head_250(g_224)
-        out_512 = self.gene_head_250(g_512)
-        out_1024 = self.gene_head_250(g_1024)
+        graph_x_512 = []
+        for layer in self.gat_layer_512:
+            g = layer(graph_512, adj_512)
+            graph_x_512.append(g.unsqueeze(0))
+
+        g_512 = torch.cat(graph_x_512, 0)
+        g_512_t = self.transformer(torch.cat((g_1024, g_512), dim=1))[n_1024:, :]
+        n_512 = g_512_t.shape[0]
+
+        graph_x_224 = []
+        label_propagations = []
+
+        for layer in self.gat_layer_224:
+            known_label_mask = (known_label.sum(dim=1) != 0).float()
+            g, label_propagation = layer(x, adj, known_label, known_label_mask, Adj_propagate=adj_propagate,
+                                         is_weighted=False)
+            graph_x_224.append(g.unsqueeze(0))
+            label_propagations.append(label_propagation)
+
+        g_224 = torch.cat(graph_x_224, 0)
+        g_224_t = self.transformer(torch.cat((g_512, g_224), dim=1))[n_512:, :]
+
+        out_224 = self.gene_head_250(g_224_t)
+        out_512 = self.gene_head_250(g_512_t)
+        out_1024 = self.gene_head_250(g_1024_t)
 
         alpha = torch.sigmoid(self.alpha)
         output_224_final = alpha * label_propagations[0] + (1 - alpha) * out_224

@@ -3,6 +3,12 @@ import os
 import pandas as pd
 from collections import defaultdict
 
+"""
+Step 3: get the edge weight across spots.
+Input: Overlap and similarity files
+Output: Edge weight across spots, saved as csv files.
+"""
+
 
 def set_region_zero(df, idx, n):
     """

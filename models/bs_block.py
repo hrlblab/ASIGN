@@ -14,35 +14,33 @@ class gs_block_with_attention_fixed_weights(nn.Module):
         self.embed_dim = embed_dim
         self.feat_dim = feature_dim
         self.attention = attention
-        self.use_fixed_weights = use_fixed_weights  # Control whether to use fixed weights
+        self.use_fixed_weights = use_fixed_weights
 
-        # Weight parameters
+        # Learnable weight matrix
         self.weight = nn.Parameter(torch.FloatTensor(
             embed_dim,
             self.feat_dim if self.gcn else 2 * self.feat_dim
         ))
         init.xavier_uniform_(self.weight)
 
-        # Add attention parameters if attention is used
+        # Add attention parameters if attention is enabled
         if self.attention:
             self.att_weight = nn.Parameter(torch.FloatTensor(self.feat_dim, 1))
             init.xavier_uniform_(self.att_weight)
 
-        # Introduce fixed weight matrices (only effective when use_fixed_weights is True)
+        # Fixed weight matrices (if enabled)
         if use_fixed_weights:
             self.fixed_weight1 = fixed_weight1 if fixed_weight1 is not None else torch.eye(feature_dim)
             self.fixed_weight2 = fixed_weight2 if fixed_weight2 is not None else torch.eye(feature_dim)
-            # Ensure fixed weights do not participate in training
             self.fixed_weight1.requires_grad = False
             self.fixed_weight2.requires_grad = False
 
     def forward(self, x, Adj):
         # Check whether to use fixed weights
         if self.use_fixed_weights:
-            # Transform features using fixed weight matrices
             x_transformed = x @ self.fixed_weight1 + x @ self.fixed_weight2
         else:
-            x_transformed = x  # If not using fixed weights, directly use original input features
+            x_transformed = x
 
         neigh_feats = self.aggregate(x_transformed, Adj)
 
@@ -61,17 +59,15 @@ class gs_block_with_attention_fixed_weights(nn.Module):
             n = len(adj)
             adj = adj - torch.eye(n).to(adj.device)
 
-        # Use attention mechanism to weight neighbor features
+        # Apply attention mechanism for weighted neighbor aggregation
         if self.policy == 'mean' and self.attention:
-            # Calculate attention weights between neighbor features and node features
-            att_scores = torch.matmul(x, self.att_weight).squeeze()  # [N, 1] -> [N]
-            att_scores = F.softmax(att_scores, dim=0)  # Normalize
+            att_scores = torch.matmul(x, self.att_weight).squeeze()
+            att_scores = F.softmax(att_scores, dim=0)
 
-            # Calculate weighted neighbor features
             num_neigh = adj.sum(1, keepdim=True)
-            mask = adj.div(num_neigh)  # Normalize adjacency matrix
-            weighted_feats = mask * att_scores.unsqueeze(1)  # Apply attention weights
-            to_feats = weighted_feats.mm(x)  # Sum weighted neighbor features
+            mask = adj.div(num_neigh)
+            weighted_feats = mask * att_scores.unsqueeze(1)
+            to_feats = weighted_feats.mm(x)
 
         elif self.policy == 'mean':
             num_neigh = adj.sum(1, keepdim=True)

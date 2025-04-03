@@ -6,6 +6,11 @@ import torch
 from tqdm import tqdm
 from sklearn.metrics.pairwise import cosine_similarity  # This may be kept for reference
 
+"""
+Step 2: calculate the similarity between different spots
+Input: Features for each patch.
+Output: Similarity relationship between different spots, saved as csv file.
+"""
 
 # Read a CSV file to return the names of polygons and circles
 def load_polygon_data(file_path):

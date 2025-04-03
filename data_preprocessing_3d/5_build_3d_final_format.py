@@ -2,6 +2,13 @@ import shutil
 import os
 import numpy as np
 
+
+"""
+Step 5: final step to get combined sample level information
+Input: npy files of each WSI
+Output: npy file for samples, add layer number to each spot
+
+"""
 file_dir = './Human_dorsolateral_3D/npy_infor'
 save_dir = './Human_dorsolateral_3D/3D_npy_information'
 

@@ -25,28 +25,24 @@ class GNNTransformerBlock(nn.Module):
         # Transformer encoder
         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=num_layers)
 
-        # Learnable positional encoding to distinguish hierarchical order
+        # Learnable positional encoding to distinguish hierarchical levels
         self.positional_encoding = nn.Parameter(torch.randn(num_layers, dim))
 
     def forward(self, gnn_outputs):
         """
-        gnn_outputs: Multi-layer GNN outputs with shape (batch_size, num_layers, num_nodes, dim)
+        gnn_outputs: Multi-layer GNN outputs in shape (batch_size, num_layers, num_nodes, dim)
         """
-        # Reshape the input, treating num_nodes and num_layers as the sequence length
+        # Reshape input: treat num_nodes and num_layers as sequence length
         num_layers, num_nodes, dim = gnn_outputs.size()
         batch_size = 1
         gnn_outputs = gnn_outputs.view(batch_size * num_nodes, num_layers, dim)
 
-        # Add positional encoding to each GNN output layer to help Transformer distinguish hierarchical order
+        # Add positional encoding to each GNN layer's output to help Transformer distinguish layers
         gnn_outputs += self.positional_encoding.unsqueeze(0).repeat(batch_size * num_nodes, 1, 1)
 
-        # Use the Transformer to aggregate cross-layer features
-        transformer_output = self.transformer_encoder(gnn_outputs)  # Output shape (batch_size * num_nodes, num_layers, dim)
-
-        # Aggregate layer outputs, for example by taking the output of the last layer or averaging all layers
-        final_output = transformer_output.mean(dim=1)  # (batch_size * num_nodes, dim)
-
-        # Restore batch_size and num_nodes dimensions
+        # Use Transformer to aggregate features across layers
+        transformer_output = self.transformer_encoder(gnn_outputs)
+        final_output = transformer_output.mean(dim=1)
         final_output = final_output.view(num_nodes, dim)
         return final_output
 
@@ -59,12 +55,12 @@ class CrossAttention(nn.Module):
         self.head_dim = dim // num_heads
         assert self.head_dim * num_heads == dim, "Embedding dimension must be divisible by number of heads"
 
-        # Define linear transformations for Query, Key, and Value
+        # Linear projections for Query, Key, and Value
         self.query_proj = nn.Linear(dim, dim)
         self.key_proj = nn.Linear(dim, dim)
         self.value_proj = nn.Linear(dim, dim)
 
-        # Output linear layer
+        # Final linear layer
         self.out_proj = nn.Linear(dim, dim)
 
         # Dropout layer
@@ -72,16 +68,16 @@ class CrossAttention(nn.Module):
 
     def forward(self, query, key, value):
         """
-        query, key, and value all have shape [batch_size, feature_size]
+        Shapes of query, key, and value: [batch_size, feature_size]
         """
         batch_size, feature_size = query.size()
 
-        # Treat [batch_size, feature_size] as [batch_size, 1, feature_size], adding a seq_len dimension
+        # Add sequence length dimension: [batch_size, feature_size] → [batch_size, 1, feature_size]
         query = query.unsqueeze(1)
         key = key.unsqueeze(1)
         value = value.unsqueeze(1)
 
-        # Linear transformations, projecting to multi-head dimensions
+        # Linear projections into multi-head dimensions
         query = self.query_proj(query).view(batch_size, 1, self.num_heads, self.head_dim).transpose(1, 2)
         key = self.key_proj(key).view(batch_size, 1, self.num_heads, self.head_dim).transpose(1, 2)
         value = self.value_proj(value).view(batch_size, 1, self.num_heads, self.head_dim).transpose(1, 2)
@@ -90,14 +86,14 @@ class CrossAttention(nn.Module):
         attention_scores = torch.matmul(query, key.transpose(-2, -1)) / torch.sqrt(
             torch.tensor(self.head_dim, dtype=torch.float32, device=query.device))
         attention_probs = F.softmax(attention_scores, dim=-1)
-        attention_probs = self.dropout(attention_probs)  # Add Dropout
+        attention_probs = self.dropout(attention_probs)
 
-        # Weight the Value using attention scores
+        # Weighted sum of values using attention probabilities
         context = torch.matmul(attention_probs, value)
 
-        # Combine multi-head results
+        # Concatenate multi-head results
         context = context.transpose(1, 2).contiguous().view(batch_size, 1, self.dim)
-
-        # Final linear layer to map back to the original dimension
-        output = self.out_proj(context).squeeze(1)  # Remove the seq_len dimension
+        output = self.out_proj(context).squeeze(1)
         return output
+
+

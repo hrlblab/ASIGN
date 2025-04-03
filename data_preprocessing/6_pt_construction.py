@@ -9,6 +9,13 @@ from scipy.spatial import distance_matrix
 from torch_geometric.data import HeteroData
 
 
+"""
+Step 7: Graph construction for region/global level
+Input: gene expression label/feature/position information of spot/region/global level
+Output: Graph of multi-resolution patches (.pt file)
+"""
+
+
 def build_graph_from_dict(node_dict, distance_threshold=2.1):
     node_names = list(node_dict.keys())
     coords = np.array([node_dict[node]['position'] for node in node_names])
@@ -38,7 +45,7 @@ def build_graph_from_dict(node_dict, distance_threshold=2.1):
     return edge_index, edge_weights, node_features, node_labels, node_names
 
 
-# 2. Build relationships between layers
+# 2. Construct relationships across layers
 def build_cross_layer_edges(upper_layer_names, lower_layer_names, cross_layer_dict):
     cross_layer_edges = []
     for upper_node, lower_nodes in cross_layer_dict.items():
@@ -99,13 +106,12 @@ for sample_dir in os.listdir(root_dir):
             x_series = position_file_224.loc[position_file_224.iloc[:, 0] == spot]['x']
             y_series = position_file_224.loc[position_file_224.iloc[:, 0] == spot]['y']
 
-            # Check if Series is empty
+            # Check if x/y Series is empty
             if not x_series.empty and not y_series.empty:
                 try:
                     position = [int(x_series.iloc[0]), int(y_series.iloc[0])]
                 except (ValueError, TypeError) as e:
                     print(f"Skipping due to conversion error: {e}")
-                    # You can choose to log this issue or continue execution
                     continue
             else:
                 print(f"Skipping because x or y Series is empty for spot {spot}")
@@ -115,11 +121,10 @@ for sample_dir in os.listdir(root_dir):
             layer_dict_224[spot] = {'feature': feature, 'label': label, 'position': position}
 
         label_file_512 = os.path.join(label_file_dir_512, f'{tmp_file}_patches_512.csv')
-        tmp_label_file_512 = pd.read_csv(os.path.join(label_file_dir_512, label_file_512))
+        tmp_label_file_512 = pd.read_csv(label_file_512)
 
         feature_file_512_path = os.path.join(feature_file_dir_512, f'{tmp_file}.npy')
-        feature_file_512 = np.load(feature_file_512_path, allow_pickle=True)
-        feature_file_512 = feature_file_512.item()
+        feature_file_512 = np.load(feature_file_512_path, allow_pickle=True).item()
 
         position_file_512_path = os.path.join(position_file_dir_512, f'{tmp_file}_patches_512.csv')
         position_file_512 = pd.read_csv(position_file_512_path)
@@ -132,11 +137,10 @@ for sample_dir in os.listdir(root_dir):
             layer_dict_512[spot] = {'feature': feature, 'label': label, 'position': position}
 
         label_file_1024 = os.path.join(label_file_dir_1024, f'{tmp_file}_patches_1024.csv')
-        tmp_label_file_1024 = pd.read_csv(os.path.join(label_file_dir_512, label_file_1024))
+        tmp_label_file_1024 = pd.read_csv(label_file_1024)
 
         feature_file_1024_path = os.path.join(feature_file_dir_1024, f'{tmp_file}.npy')
-        feature_file_1024 = np.load(feature_file_1024_path, allow_pickle=True)
-        feature_file_1024 = feature_file_1024.item()
+        feature_file_1024 = np.load(feature_file_1024_path, allow_pickle=True).item()
 
         position_file_1024_path = os.path.join(position_file_dir_1024, f'{tmp_file}_patches_1024.csv')
         position_file_1024 = pd.read_csv(position_file_1024_path)
@@ -160,19 +164,19 @@ for sample_dir in os.listdir(root_dir):
             tmp_points = position_file_1024['overlapping_512_patches'][i]
             relationship_1024_512[tmp_img] = tmp_points.split(', ')
 
-        layer1_edge_index, layer1_edge_weights, layer1_features, layer1_labels, layer1_names = build_graph_from_dict(
-            layer_dict_224)
-        layer2_edge_index, layer2_edge_weights, layer2_features, layer2_labels, layer2_names = build_graph_from_dict(
-            layer_dict_512)
-        layer3_edge_index, layer3_edge_weights, layer3_features, layer3_labels, layer3_names = build_graph_from_dict(
-            layer_dict_1024)
+        # Build intra-layer graphs
+        layer1_edge_index, layer1_edge_weights, layer1_features, layer1_labels, layer1_names = build_graph_from_dict(layer_dict_224)
+        layer2_edge_index, layer2_edge_weights, layer2_features, layer2_labels, layer2_names = build_graph_from_dict(layer_dict_512)
+        layer3_edge_index, layer3_edge_weights, layer3_features, layer3_labels, layer3_names = build_graph_from_dict(layer_dict_1024)
 
+        # Build inter-layer edges
         layer1_to_layer2_edges = build_cross_layer_edges(layer2_names, layer1_names, relationship_512_224)
         layer2_to_layer3_edges = build_cross_layer_edges(layer3_names, layer2_names, relationship_1024_512)
 
+        # Create Heterogeneous Graph
         data = HeteroData()
 
-        # Add graph for each layer
+        # Add each layer's subgraph
         data['layer_224'].x = layer1_features
         data['layer_224'].edge_index = layer1_edge_index
         data['layer_224'].edge_attr = layer1_edge_weights
@@ -188,12 +192,13 @@ for sample_dir in os.listdir(root_dir):
         data['layer_1024'].edge_attr = layer3_edge_weights
         data['layer_1024'].y = layer3_labels
 
-        # Add inter-layer edges
+        # Add cross-layer edges
         data['layer_512', 'to', 'layer_224'].edge_index = torch.tensor(layer1_to_layer2_edges).t().contiguous()
         data['layer_1024', 'to', 'layer_512'].edge_index = torch.tensor(layer2_to_layer3_edges).t().contiguous()
 
         save_path = os.path.join(save_dir, f'{label_file_224[:-4]}.pt')
         torch.save(data, save_path)
-        # Output the data structure
+
+        # Output data structure
         print(data)
         print(f"HeteroData object has been saved to {save_path}")

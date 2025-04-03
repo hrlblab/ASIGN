@@ -14,7 +14,7 @@ def pcc_loss(output, target):
     bessel_corrected_variance_y = (y ** 2).sum(dim=1)
 
     pcc = covariance / torch.sqrt(bessel_corrected_variance_x * bessel_corrected_variance_y + 1e-8)
-    return 1 - pcc.mean()  # 1 - PCC as the loss
+    return 1 - pcc.mean()  # Use 1 - PCC as loss
 
 
 def combined_loss(output, target, alpha=0.5):
@@ -39,14 +39,14 @@ def calculate_pcc(pred, target):
 def mse_loss_for_block(pred, target):
     pred = pred.float()
     target = target.float()
-    mse_per_sample = ((pred - target) ** 2).mean(dim=1)  # MSE for each node
-    avg_mse = mse_per_sample.mean()  # Average MSE for blocks
+    mse_per_sample = ((pred - target) ** 2).mean(dim=1)  # MSE per node
+    avg_mse = mse_per_sample.mean()  # Average MSE across blocks
     return avg_mse
 
 
 def mae_for_block(pred, target):
     pred = pred.float()
     target = target.float()
-    mae_per_sample = (np.abs(pred - target)).mean(dim=1)
-    avg_mse = mae_per_sample.mean()
-    return avg_mse
+    mae_per_sample = (np.abs(pred - target)).mean(dim=1)  # MAE per node
+    avg_mae = mae_per_sample.mean()  # Average MAE across blocks
+    return avg_mae

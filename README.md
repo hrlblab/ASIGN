@@ -140,7 +140,7 @@ MSAGNet comprises cross-attention layers, GAT blocks, and Transformer layers to 
 **Note:** Since different datasets have different name format, the path of some files used in `dataloader_3d.py` and `main_3d.py` need to be changed for your files. Also, to achieve best performance in your dataset, please finetune the hyperparameters used in`dataloader_3d.py` and `main_3d.py`.
 
 
-#### 3.1 Training Implementation
+#### Training Implementation
 
 - To train ASIGN on 2D-level prediction, run `main.py`:
 
@@ -153,21 +153,6 @@ MSAGNet comprises cross-attention layers, GAT blocks, and Transformer layers to 
   ```bash
   CUDA_VISIBLE_DEVICES=0 python main_3d.py --root_path '' --base_lr 0.001 --batch_size 128
   ```
-
-#### 3.2 Prediction Implementation
-
-- To test ASIGN on 2D-level prediction, run `prediction.py`:
-
-  ```bash
-  CUDA_VISIBLE_DEVICES=0 python prediction.py --root_path ''
-  ```
-
-- To test ASIGN on 3D-level prediction, run `prediction_3d.py`:
-
-  ```bash
-  CUDA_VISIBLE_DEVICES=0 python prediction_3d.py --root_path ''
-  ```
-
 ------
 
 ## Result

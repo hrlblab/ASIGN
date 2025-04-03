@@ -6,8 +6,7 @@ This project consists of the official implementation of ASIGN, which is an anato
 
 1. [Abstract](#Abstract)
 2. [Implementation](#Implementation)
-3. [Pre-processed public datasets](##2 Pre-processed public dataset)s
-4. [Result](#Result)
+3. [Result](#Result)
 
 ## Abstract
 

@@ -52,10 +52,10 @@ class ImageGraphDataset(Dataset):
         Here provides code to load HER2 and ST data, please modify when you use it.
         """
 
-        # img_dir = '/home/zhuj28/Desktop/CVPR/public_datasets/Our_data_format/HER2'
+        # img_dir = './HER2'
         # image_path = os.path.join(img_dir, self.data_list[idx]['img_path'])
 
-        img_dir = '/home/zhuj28/Desktop/CVPR/public_datasets/Our_data_format/ST_Breast/cropped_imgs/patch_224'
+        img_dir = './ST_Breast/cropped_imgs/patch_224'
         image_path = os.path.join(img_dir, self.name, self.data_list[idx]['img_path'].split('/')[-2] + '/' +
                                   self.data_list[idx]['img_path'].split('/')[-1])
 

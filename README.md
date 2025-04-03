@@ -35,42 +35,42 @@ Note that different datasets may have different format in their raw data, please
 
 1. Patch cropping for region/global level patches.
 
-  ```
-  python 1_cropped_multi_level_patch.py
-  ```
+```
+python 1_cropped_multi_level_patch.py
+```
 
 2. Find the pair of spot and region/global level patches, and filter the region/global level patches.
 
-   ```
-   python 2_find_512_pair.py
-   python 3_find_1024_pair.py
-   ```
+ ```
+ python 2_find_512_pair.py
+ python 3_find_1024_pair.py
+ ```
 
 3. Extract feature from patches of different resolutions
 
-   ```
-   python 4_feature_extraction.py
-   ```
+ ```
+ python 4_feature_extraction.py
+ ```
 
 4. Gene expression preprocessing, we follow the normalization method proposed by [ST-Net](https://www.nature.com/articles/s41551-020-0578-x).
 
-   ```
-   python 5_1_find_high_expression.py
-   python 5_2_get_label_of_other_resolution.py
-   python 5_3_normalization.py
-   ```
+ ```
+ python 5_1_find_high_expression.py
+ python 5_2_get_label_of_other_resolution.py
+ python 5_3_normalization.py
+ ```
 
 5.  Graph construction for region/global level
 
-   ```
-   python 6_pt_construction.py
-   ```
+ ```
+ python 6_pt_construction.py
+ ```
 
 6. Final step for 2D level preprocessing, get the 2D data information
 
-   ```
-   python 7_make_dataset.py
-   ```
+ ```
+ python 7_make_dataset.py
+ ```
 
 In this [link](https://drive.google.com/file/d/146qKW-qFNuF9HNH5igSMeeizKBomwXyn/view?usp=sharing), we provide you with a set of sample file formats generated during the preprocessing process for you to check whether the preprocessing phase is correct
 

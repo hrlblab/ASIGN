@@ -1,6 +1,6 @@
 # ASIGN: Anatomy-aware Spatial Imputation Graphic Network for 3D Spatial Transcriptomics (CVPR 2025)
 
-[Arxiv Paper](https://arxiv.org/abs/2412.03026) [CVPR 2025]
+[Arxiv Paper](https://arxiv.org/abs/2412.03026) [CVPR 2025](https://openaccess.thecvf.com/content/CVPR2025/papers/Zhu_ASIGN_An_Anatomy-aware_Spatial_Imputation_Graphic_Network_for_3D_Spatial_CVPR_2025_paper.pdf)
 
 This project consists of the official implementation of ASIGN, which is an anatomy-aware spatial imputation graphic network for 3D Spatial Transcriptomics. **Our paper has been accepted by CVPR 2025!**
 
@@ -168,10 +168,11 @@ Experimental results demonstrate ASIGN's superior performance and robust general
 If you find this project useful for your research, please use the following BibTeX entry.
 
 ```
-@article{zhu2024asign,
-  title={ASIGN: An Anatomy-aware Spatial Imputation Graphic Network for 3D Spatial Transcriptomics},
+@inproceedings{zhu2025asign,
+  title={ASIGN: an anatomy-aware spatial imputation graphic network for 3D spatial transcriptomics},
   author={Zhu, Junchao and Deng, Ruining and Yao, Tianyuan and Xiong, Juming and Qu, Chongyu and Guo, Junlin and Lu, Siqi and Yin, Mengmeng and Wang, Yu and Zhao, Shilin and others},
-  journal={arXiv preprint arXiv:2412.03026},
-  year={2024}
+  booktitle={Proceedings of the Computer Vision and Pattern Recognition Conference},
+  pages={30829--30838},
+  year={2025}
 }
 ```
